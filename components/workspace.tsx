@@ -23,7 +23,12 @@ import {
   Download,
   Menu,
   LogOut,
+  Sparkles,
+  Zap,
+  CreditCard,
+  Percent,
 } from "lucide-react";
+import { IntelligencePage } from "@/components/intelligence-page";
 import {
   createInvoice,
   initialStore,
@@ -38,6 +43,7 @@ import {
 } from "@/lib/billing";
 type Page =
   | "Overview"
+  | "Intelligence"
   | "Subscriptions"
   | "Products & plans"
   | "Invoices"
@@ -46,6 +52,7 @@ type Page =
   | "Settings";
 const navigation = [
   { name: "Overview", icon: LayoutDashboard },
+  { name: "Intelligence", icon: Sparkles },
   { name: "Subscriptions", icon: Repeat2 },
   { name: "Products & plans", icon: Layers3 },
   { name: "Invoices", icon: FileText },
@@ -281,6 +288,68 @@ export default function Workspace() {
     a.click();
     URL.revokeObjectURL(url);
     notify("Invoice report exported.");
+  };
+  const runBillingDayBatch = () => {
+    let createdCount = 0;
+    const newInvoices: Invoice[] = [];
+    for (const sub of active) {
+      const hasInvoice = data.invoices.some(
+        (i) =>
+          i.subscriptionId === sub.id &&
+          i.period === sub.next &&
+          i.status !== "Cancelled"
+      );
+      if (!hasInvoice) {
+        try {
+          const inv = createInvoice(
+            { ...data, invoices: [...newInvoices, ...data.invoices] },
+            sub
+          );
+          newInvoices.push(inv);
+          createdCount++;
+        } catch {}
+      }
+    }
+    if (createdCount > 0) {
+      setData((d) => ({ ...d, invoices: [...newInvoices, ...d.invoices] }));
+      notify(`Billing Day: Created ${createdCount} invoices automatically.`);
+    } else {
+      notify("Billing Day: All active subscriptions already have current invoices.");
+    }
+  };
+  const quickSettleOverdue = () => {
+    if (overdue.length === 0) {
+      notify("No overdue invoices to settle.");
+      return;
+    }
+    const target = overdue[0];
+    const updatedInvoices = data.invoices.map((inv) =>
+      inv.id === target.id ? { ...inv, status: "Paid" as const } : inv
+    );
+    const sub = data.subscriptions.find((s) => s.id === target.subscriptionId);
+    const plan = sub ? data.plans.find((p) => p.id === sub.planId) : null;
+    let updatedSubs = data.subscriptions;
+    if (sub && plan && sub.next === target.period) {
+      updatedSubs = data.subscriptions.map((s) =>
+        s.id === sub.id ? { ...s, next: nextDate(s.next, plan.cycle) } : s
+      );
+    }
+    const payment = {
+      id: `PAY-${201 + data.payments.length}`,
+      invoiceId: target.id,
+      customer: target.customer,
+      amount: target.total,
+      date: today(),
+      method: "UPI",
+      note: "Instant settlement via Quick Actions",
+    };
+    setData((d) => ({
+      ...d,
+      invoices: updatedInvoices,
+      payments: [payment, ...d.payments],
+      subscriptions: updatedSubs,
+    }));
+    notify(`Settled ${money(target.total)} for ${target.customer}. Next billing advanced.`);
   };
   const submitSubscription = (form: HTMLFormElement) => {
     const f = new FormData(form);
@@ -531,7 +600,7 @@ export default function Workspace() {
               <span className="header-avatar">{customer ? "AL" : "AS"}</span>
             </div>
           </header>
-          <main id="main-content">
+          <main id="main-content" className={page === "Intelligence" ? "chat-fullscreen-viewport" : ""}>
             <AnimatePresence mode="wait">
               <motion.div
                 key={page + role}
@@ -540,7 +609,8 @@ export default function Workspace() {
                 exit={{ opacity: 0 }}
                 transition={{ duration: 0.25 }}
               >
-                <div className="page-heading">
+                {page !== "Intelligence" && (
+                  <div className="page-heading">
                   <div>
                     <div className="eyebrow">
                       {page === "Overview"
@@ -561,18 +631,18 @@ export default function Workspace() {
                         ? customer
                           ? "Everything you need to manage your subscription."
                           : "Your subscriptions, revenue, and what needs a little attention."
-                        : {
-                            Subscriptions:
-                              "Every relationship. Every renewal. In one place.",
-                            "Products & plans":
-                              "Simple, considered plans that grow with your business.",
-                            Invoices:
-                              "From the first invoice to the final payment.",
-                            Payments: "Every payment, accounted for.",
-                            Customers:
-                              "The people behind your recurring revenue.",
-                            Settings: "Make the workspace work for you.",
-                          }[page]}
+                        : ({
+                              Subscriptions:
+                                "Every relationship. Every renewal. In one place.",
+                              "Products & plans":
+                                "Simple, considered plans that grow with your business.",
+                              Invoices:
+                                "From the first invoice to the final payment.",
+                              Payments: "Every payment, accounted for.",
+                              Customers:
+                                "The people behind your recurring revenue.",
+                              Settings: "Make the workspace work for you.",
+                            } as Record<string, string>)[page]}
                     </p>
                   </div>
                   {["Overview", "Subscriptions"].includes(page) && (
@@ -603,6 +673,19 @@ export default function Workspace() {
                     </button>
                   )}
                 </div>
+                )}
+                {page === "Intelligence" && (
+                  <IntelligencePage
+                    data={data}
+                    setData={setData}
+                    role={role}
+                    navigate={navigate}
+                    notify={notify}
+                    setSelected={setSelected}
+                    setInvoice={setInvoice}
+                    setModal={setModal}
+                  />
+                )}
                 {page === "Overview" && (
                   <>
                     <div className="section-bar">
