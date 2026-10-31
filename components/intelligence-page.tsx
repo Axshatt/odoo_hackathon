@@ -13,6 +13,12 @@ import {
   Plus,
   Brain,
   RotateCcw,
+  LayoutDashboard,
+  Repeat2,
+  Layers3,
+  Users,
+  Settings,
+  ChevronRight,
 } from "lucide-react";
 import {
   createInvoice,
@@ -189,10 +195,8 @@ export function IntelligencePage({
         "Applied standard 10% seat volume discount across eligible customer subscriptions. Next recurring invoices will reflect the discounted subtotals."
       );
     } else if (actionType === "analytics") {
-      navigate("Overview");
-      simulateAiThoughtAndRespond(
-        `Financial Health Snapshot:\n• Current MRR: ${money(mrr)}\n• Active Subscriptions: ${activeSubs.length}\n• Outstanding Balance: ${money(confirmedInvoices.reduce((a, b) => a + b.total, 0))}\n• Overdue Invoices: ${overdueInvoices.length}`
-      );
+      const targetPage = actionData?.page || "Overview";
+      navigate(targetPage);
     }
   };
 
@@ -238,7 +242,63 @@ export function IntelligencePage({
 
     const lower = query.toLowerCase();
 
-    if (lower.includes("bill") || lower.includes("invoice") || lower.includes("batch")) {
+    if (lower.includes("overview") || lower.includes("dashboard") || lower.includes("metrics")) {
+      simulateAiThoughtAndRespond(
+        `Opening Overview dashboard. Currently tracking ${activeSubs.length} active subscriptions and ${money(mrr)} in recurring revenue.`,
+        {
+          type: "analytics",
+          title: "Go to Overview",
+          description: "View top-level revenue charts, KPIs, and attention panel.",
+          buttonLabel: "Open Overview Page",
+          data: { page: "Overview" },
+        }
+      );
+    } else if (lower.includes("subscription")) {
+      simulateAiThoughtAndRespond(
+        `You have ${data.subscriptions.length} total subscriptions (${activeSubs.length} active). Moving to Subscriptions list.`,
+        {
+          type: "analytics",
+          title: "Subscriptions Management",
+          description: "Inspect customer tiers, billing intervals, discounts, and renewal dates.",
+          buttonLabel: "Go to Subscriptions",
+          data: { page: "Subscriptions" },
+        }
+      );
+    } else if (lower.includes("product") || lower.includes("plan") || lower.includes("catalog")) {
+      simulateAiThoughtAndRespond(
+        `Brightloop has ${data.plans.length} configured plans across monthly and yearly cycles. Moving to Products & Plans.`,
+        {
+          type: "analytics",
+          title: "Products & Plans Catalog",
+          description: "View active recurring plans or configure new recurring products.",
+          buttonLabel: "Open Products & Plans",
+          data: { page: "Products & plans" },
+        }
+      );
+    } else if (lower.includes("customer") || lower.includes("client")) {
+      const customerCount = Array.from(new Set(data.subscriptions.map((s) => s.customer))).length;
+      simulateAiThoughtAndRespond(
+        `Currently managing ${customerCount} customer accounts. Moving to Customer directory.`,
+        {
+          type: "analytics",
+          title: "Customer Directory",
+          description: "Access customer contacts, active contracts, and billing records.",
+          buttonLabel: "View Customers",
+          data: { page: "Customers" },
+        }
+      );
+    } else if (lower.includes("invoice") && !lower.includes("batch")) {
+      simulateAiThoughtAndRespond(
+        `There are ${data.invoices.length} invoices recorded. Moving to Invoices ledger.`,
+        {
+          type: "analytics",
+          title: "Invoices Ledger",
+          description: "Audit draft, confirmed, and paid invoice states.",
+          buttonLabel: "View Invoices",
+          data: { page: "Invoices" },
+        }
+      );
+    } else if (lower.includes("bill") || lower.includes("batch")) {
       simulateAiThoughtAndRespond(
         "I can execute an automated billing run across all active subscriptions without double billing.",
         {
@@ -323,11 +383,8 @@ export function IntelligencePage({
             </span>
           </div>
           <div className="flex items-center gap-2">
-            <span className="font-semibold text-[14px] text-neutral-900 dark:text-white">
+            <span className="font-semibold text-[14px]" style={{ color: "var(--text)" }}>
               Brightloop Intelligence
-            </span>
-            <span className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
-              Live Copilot
             </span>
           </div>
         </div>
@@ -352,15 +409,53 @@ export function IntelligencePage({
       <div className="apple-chat-body-scrollable">
         {messages.length === 0 ? (
           <div className="apple-chat-empty-hero">
-            <div className="apple-chat-hero-symbol">
-              <span className="brand-symbol">
-                b<span />
-              </span>
-            </div>
             <h1 className="apple-chat-hero-title">What can I help with?</h1>
             <p className="apple-chat-hero-sub">
               One place to manage plans, subscriptions, and recurring billing.
             </p>
+
+            <div className="apple-chat-hub-shortcuts">
+              <button
+                type="button"
+                onClick={() => navigate("Overview")}
+                className="apple-chat-hub-button"
+              >
+                <LayoutDashboard size={14} className="text-[#0071e3]" />
+                <span>Overview</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => navigate("Subscriptions")}
+                className="apple-chat-hub-button"
+              >
+                <Repeat2 size={14} className="text-[#0071e3]" />
+                <span>Subscriptions</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => navigate("Products & plans")}
+                className="apple-chat-hub-button"
+              >
+                <Layers3 size={14} className="text-[#0071e3]" />
+                <span>Products & Plans</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => navigate("Invoices")}
+                className="apple-chat-hub-button"
+              >
+                <FileText size={14} className="text-[#0071e3]" />
+                <span>Invoices</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => navigate("Customers")}
+                className="apple-chat-hub-button"
+              >
+                <Users size={14} className="text-[#0071e3]" />
+                <span>Customers</span>
+              </button>
+            </div>
           </div>
         ) : (
           <div className="apple-chat-stream-column">
@@ -389,11 +484,11 @@ export function IntelligencePage({
 
                     {m.actionCard && (
                       <div className="apple-chat-action-box">
-                        <div className="flex items-center gap-1.5 text-[12px] font-semibold text-neutral-900 dark:text-white">
+                        <div className="flex items-center gap-1.5 text-[12px] font-semibold" style={{ color: "var(--text)" }}>
                           <span className="w-1.5 h-1.5 rounded-full bg-[#0071e3]" />
                           {m.actionCard.title}
                         </div>
-                        <p className="text-[11px] text-neutral-500 dark:text-neutral-400 mt-1 mb-2.5">
+                        <p className="text-[11px] mt-1 mb-2.5" style={{ color: "var(--muted)" }}>
                           {m.actionCard.description}
                         </p>
                         <button

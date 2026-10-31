@@ -29,6 +29,7 @@ import {
   Percent,
 } from "lucide-react";
 import { IntelligencePage } from "@/components/intelligence-page";
+import { WelcomeModal } from "@/components/welcome-modal";
 import {
   createInvoice,
   initialStore,
@@ -51,8 +52,8 @@ type Page =
   | "Customers"
   | "Settings";
 const navigation = [
-  { name: "Overview", icon: LayoutDashboard },
   { name: "Intelligence", icon: Sparkles },
+  { name: "Overview", icon: LayoutDashboard },
   { name: "Subscriptions", icon: Repeat2 },
   { name: "Products & plans", icon: Layers3 },
   { name: "Invoices", icon: FileText },
@@ -149,7 +150,7 @@ function Field({
 export default function Workspace() {
   const [data, setData] = useState<Store>(initialStore);
   const [ready, setReady] = useState(false);
-  const [page, setPage] = useState<Page>("Overview");
+  const [page, setPage] = useState<Page>("Intelligence");
   const [role, setRole] = useState<Role>("Admin");
   const [dark, setDark] = useState(false);
   const [mobile, setMobile] = useState(false);
@@ -166,6 +167,7 @@ export default function Workspace() {
   const [accountMode, setAccountMode] = useState<"login" | "signup" | "reset">(
     "login",
   );
+  const [showWelcome, setShowWelcome] = useState(true);
   useEffect(() => {
     try {
       const saved = localStorage.getItem("brightloop-v1");
@@ -1796,6 +1798,10 @@ export default function Workspace() {
             </div>
           </Modal>
         )}
+        <WelcomeModal
+          isOpen={showWelcome}
+          onClose={() => setShowWelcome(false)}
+        />
         <AnimatePresence>
           {toast && (
             <motion.div
