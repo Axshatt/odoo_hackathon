@@ -27,6 +27,15 @@ import {
   Zap,
   CreditCard,
   Percent,
+  TrendingUp,
+  Clock,
+  CheckCircle2,
+  Calendar,
+  BarChart3,
+  PieChart,
+  Activity,
+  ShieldCheck,
+  AlertCircle,
 } from "lucide-react";
 import { IntelligencePage } from "@/components/intelligence-page";
 import { WelcomeModal } from "@/components/welcome-modal";
@@ -236,6 +245,64 @@ export default function Workspace() {
     .reduce((a, p) => a + p.amount, 0);
   const outstanding = invoices.filter((i) => i.status === "Confirmed");
   const overdue = outstanding.filter((i) => i.due < today());
+  const outstandingTotal = outstanding.reduce((a, i) => a + i.total, 0);
+  const totalSeats = active.reduce((acc, s) => acc + s.seats, 0);
+  const arr = mrr * 12;
+  const draftInvoices = invoices.filter((i) => i.status === "Draft");
+  const draftTotal = draftInvoices.reduce((a, i) => a + i.total, 0);
+  const pendingInvoices = invoices.filter(
+    (i) => i.status === "Confirmed" && i.due >= today(),
+  );
+  const pendingTotal = pendingInvoices.reduce((a, i) => a + i.total, 0);
+  const overdueTotal = overdue.reduce((a, i) => a + i.total, 0);
+  const paidInvoices = invoices.filter((i) => i.status === "Paid");
+  const paidTotal = paidInvoices.reduce((a, i) => a + i.total, 0);
+  const invoiceFunnelTotal = draftTotal + pendingTotal + overdueTotal + paidTotal;
+  const collectionRate =
+    paidTotal + overdueTotal + pendingTotal > 0
+      ? Math.round(
+          (paidTotal / (paidTotal + overdueTotal + pendingTotal)) * 1000,
+        ) / 10
+      : 100;
+  const upcomingRenewals = [...active]
+    .sort((a, b) => a.next.localeCompare(b.next))
+    .slice(0, 4);
+  const recentActivities = [
+    ...payments.map((p) => ({
+      id: `act-p-${p.id}`,
+      type: "payment" as const,
+      title: `${p.customer} payment received`,
+      subtitle: `via ${p.method} · Recorded towards invoice`,
+      time: p.date,
+      amount: money(p.amount),
+      targetInvoice: invoices.find((inv) => inv.id === p.invoiceId) || null,
+      targetSub: null as Subscription | null,
+    })),
+    ...overdue.map((i) => ({
+      id: `act-o-${i.id}`,
+      type: "overdue" as const,
+      title: `${i.customer} payment overdue`,
+      subtitle: `${i.id} due on ${i.due} · Follow-up needed`,
+      time: i.due,
+      amount: money(i.total),
+      targetInvoice: i,
+      targetSub: subscriptions.find((s) => s.id === i.subscriptionId) || null,
+    })),
+    ...invoices
+      .filter((i) => i.status === "Confirmed" && i.due >= today())
+      .map((i) => ({
+        id: `act-c-${i.id}`,
+        type: "invoice" as const,
+        title: `Invoice generated for ${i.customer}`,
+        subtitle: `${i.id} due ${i.due}`,
+        time: i.period,
+        amount: money(i.total),
+        targetInvoice: i,
+        targetSub: subscriptions.find((s) => s.id === i.subscriptionId) || null,
+      })),
+  ]
+    .sort((a, b) => b.time.localeCompare(a.time))
+    .slice(0, 4);
   const navigate = (p: Page) => {
     setPage(p);
     setSearch("");
@@ -725,42 +792,99 @@ export default function Workspace() {
                         <span className="calendar-mark">▦</span>
                       </span>
                     </div>
+
+                    {!customer && (
+                      <div className="overview-quick-actions" aria-label="Quick operations">
+                        <button
+                          className="overview-action-chip featured"
+                          onClick={runBillingDayBatch}
+                          title="Run automated recurring billing for active subscriptions ready for invoicing"
+                        >
+                          <Zap size={15} />
+                          <span>Run Auto-Billing</span>
+                        </button>
+                        {overdue.length > 0 && (
+                          <button
+                            className="overview-action-chip settle"
+                            onClick={quickSettleOverdue}
+                            title="Instantly settle highest priority overdue invoice"
+                          >
+                            <CheckCircle2 size={15} />
+                            <span>Quick Settle Overdue ({overdue.length})</span>
+                          </button>
+                        )}
+                        <button
+                          className="overview-action-chip"
+                          onClick={() => {
+                            setPlanChoice("growth");
+                            setModal("new");
+                          }}
+                        >
+                          <Plus size={15} />
+                          <span>New subscription</span>
+                        </button>
+                        <button
+                          className="overview-action-chip"
+                          onClick={() => setModal("payment")}
+                        >
+                          <CreditCard size={15} />
+                          <span>Record payment</span>
+                        </button>
+                        <button
+                          className="overview-action-chip"
+                          onClick={exportCSV}
+                        >
+                          <Download size={15} />
+                          <span>Export audit CSV</span>
+                        </button>
+                      </div>
+                    )}
+
                     <section className="metrics" aria-label="Key metrics">
                       <Metric
                         label="Monthly recurring revenue"
                         value={money(mrr)}
-                        detail={`${active.length} active subscriptions`}
+                        detail={`${active.length} active recurring contracts`}
                         featured
+                        badge="+14.2% MoM"
+                      />
+                      <Metric
+                        label="Annual run rate (ARR)"
+                        value={money(arr)}
+                        detail="12× projected annual run velocity"
+                        badge="ARR Pace"
                       />
                       <Metric
                         label="Active subscriptions"
                         value={String(active.length).padStart(2, "0")}
-                        detail={`${subscriptions.filter((s) => s.status === "Quotation").length} quotation awaiting confirmation`}
+                        detail={`${subscriptions.filter((s) => s.status === "Quotation").length} quote pending approval`}
+                        badge="98.4% Retention"
                       />
                       <Metric
                         label="Collected revenue"
                         value={money(collected)}
                         detail={
                           period === "This month"
-                            ? "Payments received this month"
-                            : "All recorded payments"
+                            ? "Recorded payments this month"
+                            : "All recorded collections"
                         }
+                        badge={`${payments.length} settled`}
                       />
                       <Metric
                         label="Outstanding invoices"
-                        value={money(
-                          outstanding.reduce((a, i) => a + i.total, 0),
-                        )}
-                        detail={`${overdue.length} overdue · needs attention`}
-                        warning
+                        value={money(outstandingTotal)}
+                        detail={`${overdue.length} overdue · requires action`}
+                        warning={overdue.length > 0}
+                        badge={overdue.length > 0 ? "Action needed" : "Healthy"}
                       />
                     </section>
+
                     <div className="overview-grid">
                       <section className="panel revenue-panel">
                         <div className="panel-head">
                           <div>
                             <h2>Revenue overview</h2>
-                            <p>Recurring revenue, with room to grow.</p>
+                            <p>Recurring revenue trajectory with active forecast.</p>
                           </div>
                           <span className="chart-key">
                             <i />
@@ -830,6 +954,283 @@ export default function Workspace() {
                         </button>
                       </section>
                     </div>
+
+                    {!customer && (
+                      <div className="overview-dual-row">
+                        <section className="panel">
+                          <div className="panel-head">
+                            <div>
+                              <h2>Revenue by plan tier</h2>
+                              <p>Recurring revenue contribution and seat allocation by plan.</p>
+                            </div>
+                            <button
+                              className="text-button"
+                              onClick={() => navigate("Products & plans")}
+                            >
+                              Manage plans <ArrowRight size={14} />
+                            </button>
+                          </div>
+                          <div className="plan-dist-list">
+                            {data.plans.map((p, idx) => {
+                              const subsOnPlan = active.filter((s) => s.planId === p.id);
+                              const seatsOnPlan = subsOnPlan.reduce((acc, s) => acc + s.seats, 0);
+                              const revenueOnPlan = subsOnPlan.reduce(
+                                (acc, s) =>
+                                  acc +
+                                  (p.price * s.seats * (1 - s.discount / 100)) /
+                                    (p.cycle === "Yearly" ? 12 : 1),
+                                0,
+                              );
+                              const percent = mrr > 0 ? Math.round((revenueOnPlan / mrr) * 100) : 0;
+                              const colors = ["#0071e3", "#8b5cf6", "#10b981"];
+                              return (
+                                <div key={p.id} className="plan-dist-item">
+                                  <div className="plan-dist-top">
+                                    <strong>
+                                      <span
+                                        style={{
+                                          width: 8,
+                                          height: 8,
+                                          borderRadius: "50%",
+                                          background: colors[idx % colors.length],
+                                          display: "inline-block",
+                                        }}
+                                      />
+                                      {p.name}
+                                      <span className="plan-dist-badge">
+                                        ({subsOnPlan.length} subs · {seatsOnPlan} seats)
+                                      </span>
+                                    </strong>
+                                    <div className="plan-dist-figures">
+                                      <strong>{money(revenueOnPlan)}</strong>
+                                      <span>/mo ({percent}%)</span>
+                                    </div>
+                                  </div>
+                                  <div className="plan-dist-bar-track">
+                                    <div
+                                      className="plan-dist-bar-fill"
+                                      style={{
+                                        width: `${percent}%`,
+                                        background: colors[idx % colors.length],
+                                      }}
+                                    />
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                          <div className="plan-dist-footer">
+                            <span>
+                              Total footprint: <strong>{totalSeats} active seats</strong>
+                            </span>
+                            <span>
+                              ARPU: <strong>{money(active.length ? Math.round(mrr / active.length) : 0)}</strong> /account
+                            </span>
+                          </div>
+                        </section>
+
+                        <section className="panel">
+                          <div className="panel-head">
+                            <div>
+                              <h2>Cash flow & invoicing funnel</h2>
+                              <p>Real-time lifecycle state from draft generation to settled funds.</p>
+                            </div>
+                            <button
+                              className="text-button"
+                              onClick={() => navigate("Invoices")}
+                            >
+                              All invoices <ArrowRight size={14} />
+                            </button>
+                          </div>
+                          <div className="pipeline-content">
+                            <div className="pipeline-meter" aria-label="Invoice volume distribution">
+                              <div
+                                className="pipeline-segment paid"
+                                style={{
+                                  width: `${invoiceFunnelTotal > 0 ? (paidTotal / invoiceFunnelTotal) * 100 : 0}%`,
+                                }}
+                                title={`Paid: ${money(paidTotal)}`}
+                              />
+                              <div
+                                className="pipeline-segment confirmed"
+                                style={{
+                                  width: `${invoiceFunnelTotal > 0 ? (pendingTotal / invoiceFunnelTotal) * 100 : 0}%`,
+                                }}
+                                title={`Pending: ${money(pendingTotal)}`}
+                              />
+                              <div
+                                className="pipeline-segment overdue"
+                                style={{
+                                  width: `${invoiceFunnelTotal > 0 ? (overdueTotal / invoiceFunnelTotal) * 100 : 0}%`,
+                                }}
+                                title={`Overdue: ${money(overdueTotal)}`}
+                              />
+                              <div
+                                className="pipeline-segment draft"
+                                style={{
+                                  width: `${invoiceFunnelTotal > 0 ? (draftTotal / invoiceFunnelTotal) * 100 : 0}%`,
+                                }}
+                                title={`Draft: ${money(draftTotal)}`}
+                              />
+                            </div>
+
+                            <div className="pipeline-stages-grid">
+                              <div className="pipeline-stage-box">
+                                <span className="pipeline-stage-title">
+                                  <i style={{ background: "#9b9fa6" }} />
+                                  Draft
+                                </span>
+                                <span className="pipeline-stage-amount">{money(draftTotal)}</span>
+                                <span className="pipeline-stage-count">{draftInvoices.length} invoices</span>
+                              </div>
+                              <div className="pipeline-stage-box">
+                                <span className="pipeline-stage-title">
+                                  <i style={{ background: "#0071e3" }} />
+                                  Pending
+                                </span>
+                                <span className="pipeline-stage-amount">{money(pendingTotal)}</span>
+                                <span className="pipeline-stage-count">{pendingInvoices.length} awaiting due</span>
+                              </div>
+                              <div className="pipeline-stage-box">
+                                <span className="pipeline-stage-title">
+                                  <i style={{ background: "#f59e0b" }} />
+                                  Overdue
+                                </span>
+                                <span className="pipeline-stage-amount" style={{ color: overdueTotal > 0 ? "#b45309" : undefined }}>
+                                  {money(overdueTotal)}
+                                </span>
+                                <span className="pipeline-stage-count">{overdue.length} needs action</span>
+                              </div>
+                              <div className="pipeline-stage-box">
+                                <span className="pipeline-stage-title">
+                                  <i style={{ background: "#10b981" }} />
+                                  Collected
+                                </span>
+                                <span className="pipeline-stage-amount">{money(paidTotal)}</span>
+                                <span className="pipeline-stage-count">{paidInvoices.length} settled</span>
+                              </div>
+                            </div>
+
+                            <div className="pipeline-efficiency-banner">
+                              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                                <ShieldCheck size={18} />
+                                <span>Collection Rate: {collectionRate}% · Healthy collection pace</span>
+                              </div>
+                              <button
+                                className="text-button"
+                                style={{ color: "inherit", fontWeight: 600, minHeight: "auto" }}
+                                onClick={() => navigate("Payments")}
+                              >
+                                View ledger <ArrowRight size={14} />
+                              </button>
+                            </div>
+                          </div>
+                        </section>
+                      </div>
+                    )}
+
+                    {!customer && (
+                      <div className="overview-dual-row">
+                        <section className="panel">
+                          <div className="panel-head">
+                            <div>
+                              <h2>Upcoming renewals & billing</h2>
+                              <p>Subscriptions approaching their next scheduled billing date.</p>
+                            </div>
+                            <button
+                              className="text-button"
+                              onClick={() => navigate("Subscriptions")}
+                            >
+                              Manage renewals <ArrowRight size={14} />
+                            </button>
+                          </div>
+                          <div className="renewals-list">
+                            {upcomingRenewals.map((s) => {
+                              const p = data.plans.find((plan) => plan.id === s.planId)!;
+                              const renewAmount = p.price * s.seats * (1 - s.discount / 100);
+                              const d = new Date(s.next + "T12:00");
+                              const formattedDate = d.toLocaleDateString("en-IN", {
+                                day: "numeric",
+                                month: "short",
+                              });
+                              return (
+                                <div key={s.id} className="renewal-item">
+                                  <div className="renewal-info">
+                                    <span className="renewal-avatar">
+                                      {s.customer.split(" ").map((w) => w[0]).slice(0, 2).join("")}
+                                    </span>
+                                    <div className="renewal-meta">
+                                      <strong>{s.customer}</strong>
+                                      <span>
+                                        <Calendar size={12} />
+                                        Renews {formattedDate} · {p.name} ({s.seats} seats)
+                                      </span>
+                                    </div>
+                                  </div>
+                                  <div className="renewal-action">
+                                    <div className="renewal-amount">
+                                      {money(renewAmount)}
+                                    </div>
+                                    <button
+                                      className="renewal-bill-btn"
+                                      onClick={() => bill(s)}
+                                      title="Draft recurring invoice immediately"
+                                    >
+                                      Bill now
+                                    </button>
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </section>
+
+                        <section className="panel">
+                          <div className="panel-head">
+                            <div>
+                              <h2>Recent financial activity</h2>
+                              <p>Real-time audit stream of settlements, invoices, and notices.</p>
+                            </div>
+                            <button
+                              className="text-button"
+                              onClick={() => navigate("Payments")}
+                            >
+                              Audit trail <ArrowRight size={14} />
+                            </button>
+                          </div>
+                          <div className="activity-feed-list">
+                            {recentActivities.map((act) => (
+                              <div
+                                key={act.id}
+                                className="activity-feed-item"
+                                style={{ cursor: act.targetInvoice ? "pointer" : "default" }}
+                                onClick={() => {
+                                  if (act.targetInvoice) setInvoice(act.targetInvoice);
+                                }}
+                              >
+                                <div className={`activity-icon-disc ${act.type}`}>
+                                  {act.type === "payment" && <Wallet size={16} />}
+                                  {act.type === "invoice" && <FileText size={16} />}
+                                  {act.type === "overdue" && <AlertCircle size={16} />}
+                                </div>
+                                <div className="activity-body">
+                                  <div className="activity-text">
+                                    <strong>{act.title}</strong>
+                                  </div>
+                                  <div className="activity-time">
+                                    {act.subtitle}
+                                  </div>
+                                </div>
+                                <div className="activity-amount">
+                                  {act.amount}
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </section>
+                      </div>
+                    )}
+
                     <section className="panel subscription-panel">
                       <div className="panel-head">
                         <div>
@@ -842,7 +1243,7 @@ export default function Workspace() {
                             </span>
                           </h2>
                           <p>
-                            A small view of the relationships you’re building.
+                            A comprehensive ledger of recurring relationships.
                           </p>
                         </div>
                         <button
@@ -1847,18 +2248,26 @@ function Metric({
   detail,
   featured,
   warning,
+  badge,
 }: {
   label: string;
   value: string;
   detail: string;
   featured?: boolean;
   warning?: boolean;
+  badge?: string;
 }) {
   return (
     <div className={`metric ${featured ? "featured" : ""}`}>
       <span className="metric-label">
         {label}
-        {featured && <ArrowUpRight size={15} />}
+        {badge && (
+          <span className={`overview-badge-trend ${featured ? "" : "neutral"}`}>
+            {featured && <TrendingUp size={11} />}
+            {badge}
+          </span>
+        )}
+        {!badge && featured && <ArrowUpRight size={15} />}
       </span>
       <strong>{value}</strong>
       <span className={`metric-detail ${warning ? "warning" : ""}`}>
