@@ -226,7 +226,7 @@ export function IntelligencePage({
     }, 1250);
   };
 
-  const handleSend = (textToSend?: string) => {
+  const handleSend = async (textToSend?: string) => {
     const query = (textToSend || input).trim();
     if (!query) return;
 
@@ -240,7 +240,100 @@ export function IntelligencePage({
     setMessages((prev) => [...prev, userMsg]);
     setInput("");
 
+    setThinkingStep("Thinking...");
+    setTimeout(() => {
+      setThinkingStep("Analyzing subscription records & billing rules...");
+    }, 350);
+
     const lower = query.toLowerCase();
+
+    try {
+      const response = await fetch("http://localhost:5001/api/ai/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ prompt: query }),
+      });
+
+      if (response.ok) {
+        const json = await response.json();
+        const aiText = json.data?.text;
+        const suggestedAction = json.data?.suggestedAction;
+
+        let card: ActionCard | undefined = undefined;
+
+        if (suggestedAction === "batch_billing" || lower.includes("bill") || lower.includes("batch")) {
+          card = {
+            type: "batch_billing",
+            title: "Run Recurring Billing Batch",
+            description: `Scan ${activeSubs.length} active customer accounts and draft invoices for upcoming due dates.`,
+            buttonLabel: "Generate Due Invoices",
+          };
+        } else if (suggestedAction === "quick_pay" || lower.includes("pay") || lower.includes("settle") || lower.includes("overdue")) {
+          if (overdueInvoices.length > 0) {
+            card = {
+              type: "quick_pay",
+              title: `Settle ${overdueInvoices[0].customer}`,
+              description: `Invoice ${overdueInvoices[0].id} is overdue with total ${money(overdueInvoices[0].total)}. One-click settlement available.`,
+              buttonLabel: `Record UPI Settlement for ${overdueInvoices[0].customer}`,
+              data: overdueInvoices[0],
+            };
+          }
+        } else if (suggestedAction === "new_quote" || lower.includes("quote") || lower.includes("offer")) {
+          card = {
+            type: "new_quote",
+            title: "Prepare Subscription Quotation",
+            description: "Configure customer offer with product variants and approved discounts.",
+            buttonLabel: "Create Quotation Draft",
+          };
+        } else if (suggestedAction === "apply_discount" || lower.includes("discount")) {
+          card = {
+            type: "apply_discount",
+            title: "Apply 10% Seat Volume Discount",
+            description: "Apply pre-approved 10% discount rule to eligible active accounts.",
+            buttonLabel: "Apply 10% Discount Rule",
+          };
+        } else if (suggestedAction === "analytics" || lower.includes("overview") || lower.includes("mrr") || lower.includes("report")) {
+          card = {
+            type: "analytics",
+            title: "Go to Overview Dashboard",
+            description: "Inspect revenue overview, KPIs, and attention panel.",
+            buttonLabel: "Open Overview Page",
+            data: { page: "Overview" },
+          };
+        } else if (lower.includes("subscription")) {
+          card = {
+            type: "analytics",
+            title: "Subscriptions Management",
+            description: "Inspect customer tiers, billing intervals, discounts, and renewal dates.",
+            buttonLabel: "Go to Subscriptions",
+            data: { page: "Subscriptions" },
+          };
+        } else if (lower.includes("product") || lower.includes("plan")) {
+          card = {
+            type: "analytics",
+            title: "Products & Plans Catalog",
+            description: "View active recurring plans or configure new recurring products.",
+            buttonLabel: "Open Products & Plans",
+            data: { page: "Products & plans" },
+          };
+        }
+
+        setTimeout(() => {
+          setThinkingStep(null);
+          setMessages((prev) => [
+            ...prev,
+            {
+              id: `msg-${Date.now()}`,
+              sender: "ai",
+              text: aiText || "I have analyzed your subscription records.",
+              timestamp: "Just now",
+              actionCard: card,
+            },
+          ]);
+        }, 750);
+        return;
+      }
+    } catch {}
 
     if (lower.includes("overview") || lower.includes("dashboard") || lower.includes("metrics")) {
       simulateAiThoughtAndRespond(

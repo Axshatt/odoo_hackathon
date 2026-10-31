@@ -13,4 +13,5 @@ export const ENV = {
   FRONTEND_URL: process.env.FRONTEND_URL || "http://localhost:3000",
   JWT_SECRET: process.env.JWT_SECRET || "brightloop_super_secret_jwt_key_2026",
   JWT_EXPIRES_IN: process.env.JWT_EXPIRES_IN || "7d",
+  GEMINI_API_KEY: process.env.GEMINI_API_KEY,
 };

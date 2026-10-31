@@ -152,7 +152,7 @@ export default function Workspace() {
   const [ready, setReady] = useState(false);
   const [page, setPage] = useState<Page>("Intelligence");
   const [role, setRole] = useState<Role>("Admin");
-  const [dark, setDark] = useState(false);
+  const [dark, setDark] = useState(true);
   const [mobile, setMobile] = useState(false);
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState("All");
@@ -167,9 +167,13 @@ export default function Workspace() {
   const [accountMode, setAccountMode] = useState<"login" | "signup" | "reset">(
     "login",
   );
-  const [showWelcome, setShowWelcome] = useState(true);
+  const [showWelcome, setShowWelcome] = useState(false);
   useEffect(() => {
     try {
+      const welcomeSeen = localStorage.getItem("brightloop-welcome-seen");
+      if (!welcomeSeen) {
+        setShowWelcome(true);
+      }
       const saved = localStorage.getItem("brightloop-v1");
       if (saved) {
         const parsed = JSON.parse(saved);
@@ -182,7 +186,12 @@ export default function Workspace() {
         )
           setData(parsed);
       }
-      setDark(localStorage.getItem("brightloop-theme") === "dark");
+      const savedTheme = localStorage.getItem("brightloop-theme");
+      if (savedTheme) {
+        setDark(savedTheme === "dark");
+      } else {
+        setDark(true);
+      }
     } catch {}
     setReady(true);
   }, []);
@@ -1800,7 +1809,12 @@ export default function Workspace() {
         )}
         <WelcomeModal
           isOpen={showWelcome}
-          onClose={() => setShowWelcome(false)}
+          onClose={() => {
+            setShowWelcome(false);
+            try {
+              localStorage.setItem("brightloop-welcome-seen", "true");
+            } catch {}
+          }}
         />
         <AnimatePresence>
           {toast && (

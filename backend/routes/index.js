@@ -7,6 +7,7 @@ import subscriptionRoutes from "./subscriptionRoutes.js";
 import billingRoutes from "./billingRoutes.js";
 import paymentRoutes from "./paymentRoutes.js";
 import analyticsRoutes from "./analyticsRoutes.js";
+import aiRoutes from "./aiRoutes.js";
 
 const router = Router();
 
@@ -18,6 +19,7 @@ router.use("/subscriptions", subscriptionRoutes);
 router.use("/billing", billingRoutes);
 router.use("/payments", paymentRoutes);
 router.use("/analytics", analyticsRoutes);
+router.use("/ai", aiRoutes);
 
 export default router;
 
